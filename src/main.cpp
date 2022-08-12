@@ -11,6 +11,7 @@
 */
 /*
 JC Servaye
+Complete project details at https://github.com/Servayejc/esp_now_sender/
 
 Automatic pairing for ESP NOW
 
