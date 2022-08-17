@@ -217,7 +217,6 @@ PairingStatus autoPairing(){
 
 void setup() {
   Serial.begin(74880);
-  //ARDUINOTRACE_INIT(74880);
   Serial.println();
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
