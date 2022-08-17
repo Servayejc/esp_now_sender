@@ -11,7 +11,6 @@
 */
 /*
 JC Servaye
-Complete project details at https://github.com/Servayejc/esp_now_sender/
 
 Automatic pairing for ESP NOW
 
@@ -50,8 +49,7 @@ TODO
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
-#include <Arduino_JSON.h>
-#include <ArduinoTrace.h>
+
 
 // Set your Board and Server ID 
 #define BOARD_ID 1
@@ -80,7 +78,7 @@ struct_message myData;  // data to send
 struct_message inData;  // data received
 struct_pairing pairingData;
 
-enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIRED};
+enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
 PairingStatus pairingStatus = NOT_PAIRED;
 
 int channel = 1;
@@ -89,6 +87,8 @@ int channel = 1;
 float t = 0;
 float h = 0;
 
+
+unsigned long currentMillis = millis();
 unsigned long previousMillis = 0;   // Stores last time temperature was published
 const long interval = 10000;        // Interval at which to publish sensor readings
 
@@ -163,63 +163,73 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
       Serial.print(" on channel " );
       Serial.println(pairingData.channel);    // channel used by the server
       addPeer(mac_addr, pairingData.channel); // add the server to the peer list 
-      pairingStatus = PAIRED;                 // set the pairing status
+      pairingStatus = PAIR_PAIRED;                 // set the pairing status
     }
   }  
 }
 
-void autoPairing(){
-if (pairingStatus == PAIR_REQUEST){
+PairingStatus autoPairing(){
+  switch(pairingStatus) {
+    case PAIR_REQUEST:
     Serial.print("Pairing request on channel "  );
     Serial.println(channel);
-    
+  
     // clean esp now
-    esp_now_deinit();
+    //esp_now_deinit();
 
     // set WiFi channel   
     ESP_ERROR_CHECK(esp_wifi_set_channel(channel,  WIFI_SECOND_CHAN_NONE));
     if (esp_now_init() != ESP_OK) {
       Serial.println("Error initializing ESP-NOW");
-      return;
     }
-  
+
     // set callback routines
     esp_now_register_send_cb(OnDataSent);
     esp_now_register_recv_cb(OnDataRecv);
-    
+  
     // set pairing data to send to the server
     pairingData.id = BOARD_ID;     
     pairingData.channel = channel;
 
     // add peer and send request
     addPeer(serverAddress, channel);
-    esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &pairingData, sizeof(pairingData));
+    esp_now_send(serverAddress, (uint8_t *) &pairingData, sizeof(pairingData));
     pairingStatus = PAIR_REQUESTED;
-  }
+    break;
 
-  // time out to allow receiving response from server
-  unsigned long currentMillis = millis();
-  if(currentMillis - previousMillis > 100) {
-    previousMillis = currentMillis;
-    // time out expited,  try next channel
-    channel ++;
-    pairingStatus = PAIR_REQUEST;
-  }     
-} 
+    case PAIR_REQUESTED:
+    // time out to allow receiving response from server
+    currentMillis = millis();
+    if(currentMillis - previousMillis > 100) {
+      previousMillis = currentMillis;
+      // time out expired,  try next channel
+      channel ++;
+      pairingStatus = PAIR_REQUEST;
+    }
+    break;
+
+    case PAIR_PAIRED:
+    //Serial.println("Paired!");
+    break;
+  }
+  return pairingStatus;
+}  
 
 void setup() {
-  //Serial.begin(74880);
-  ARDUINOTRACE_INIT(74880);
+  Serial.begin(74880);
+  //ARDUINOTRACE_INIT(74880);
   Serial.println();
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
+  
+  Serial.println(sizeof(myData));
   pairingStatus = PAIR_REQUEST;
 }  
 
 void loop() {
-  if (pairingStatus == PAIRED) {  // normal loop code
+  if (autoPairing() == PAIR_PAIRED) {
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillis >= interval) {
       // Save the last time a new reading was published
@@ -231,8 +241,5 @@ void loop() {
       myData.readingId = readingId++;
       esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &myData, sizeof(myData));
     }
-  } else {
-    // not yet paired, call auto pairing....
-    autoPairing();
   }
 }
