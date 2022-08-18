@@ -11,6 +11,7 @@
 */
 /*
 JC Servaye
+Complete project details at https://github.com/Servayejc/esp_now_sender/
 
 Automatic pairing for ESP NOW
 
@@ -37,12 +38,14 @@ If the server received the message we are on the good channel
 else 
     The sender repeat the process on the next channel
 
-Note: 
-  In the code below, we use the size of the message to distinct regular message to pairing message
+Notes: 
+  -In the code below, we use the size of the message to distinct regular message to pairing message
+  -Uncomment //#define SAVE_CHANNEL to save the channel in EEPROM 
+   but this has not a major impact of the pairing time 
+  -13 channels exists in Europe, you can change MAX_CHANNEL value to accomodate your location  
 
-TODO 
-  Repeat the process in case of the server is not running 
-  
+TODO:
+  In case of server restart, it may use another WiFi channel, we need to add code for this situation. 
 
 */
 
@@ -98,7 +101,7 @@ float h = 0;
 unsigned long currentMillis = millis();
 unsigned long previousMillis = 0;   // Stores last time temperature was published
 const long interval = 10000;        // Interval at which to publish sensor readings
-unsigned long start;
+unsigned long start;                // used to measure Pairing time
 unsigned int readingId = 0;   
 
 // simulate temperature reading
@@ -161,9 +164,9 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
     Serial.println(inData.readingId);
   } 
 
-  if (len == sizeof(pairingData)){  // we received pairing request from server
+  if (len == sizeof(pairingData)){          // we received pairing data from server
     memcpy(&pairingData, incomingData, sizeof(pairingData));
-    if (pairingData.id == 0) {  // the message comes from server
+    if (pairingData.id == 0) {              // the message comes from server
       printMAC(mac_addr);
       Serial.print("Pairing done for ");
       printMAC(mac_addr);
@@ -181,7 +184,7 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
         EEPROM.write(0, pairingData.channel);
         EEPROM.commit();
       #endif  
-      pairingStatus = PAIR_PAIRED;                 // set the pairing status
+      pairingStatus = PAIR_PAIRED;             // set the pairing status
     }
   }  
 }
@@ -191,9 +194,6 @@ PairingStatus autoPairing(){
     case PAIR_REQUEST:
     Serial.print("Pairing request on channel "  );
     Serial.println(channel);
-  
-    // clean esp now
-    //esp_now_deinit();
 
     // set WiFi channel   
     ESP_ERROR_CHECK(esp_wifi_set_channel(channel,  WIFI_SECOND_CHAN_NONE));
@@ -231,8 +231,7 @@ PairingStatus autoPairing(){
     break;
 
     case PAIR_PAIRED:
-    //Serial.println("Paired!");
-    
+      // nothing to do here 
     break;
   }
   return pairingStatus;
@@ -274,4 +273,3 @@ void loop() {
     }
   }
 }
-// Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
