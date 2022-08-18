@@ -49,11 +49,14 @@ TODO
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <WiFi.h>
+#include <EEPROM.h>
 
+//#define SAVE_CHANNEL  
 
 // Set your Board and Server ID 
 #define BOARD_ID 1
 #define SERVER_ID 0
+#define MAX_CHANNEL 11  // for North America // 13 in Europe
 
 uint8_t serverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
@@ -81,7 +84,11 @@ struct_pairing pairingData;
 enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
 PairingStatus pairingStatus = NOT_PAIRED;
 
+#ifdef SAVE_CHANNEL
+  int lastChannel;
+#endif  
 int channel = 1;
+ 
 
 // simulate temperature and humidity data
 float t = 0;
@@ -91,7 +98,7 @@ float h = 0;
 unsigned long currentMillis = millis();
 unsigned long previousMillis = 0;   // Stores last time temperature was published
 const long interval = 10000;        // Interval at which to publish sensor readings
-
+unsigned long start;
 unsigned int readingId = 0;   
 
 // simulate temperature reading
@@ -109,7 +116,7 @@ float readDHTHumidity() {
 void addPeer(const uint8_t * mac_addr, int chan){
   esp_now_peer_info_t peer;
   Serial.println(chan);
-  ESP_ERROR_CHECK(esp_wifi_set_channel(chan ,  WIFI_SECOND_CHAN_NONE));
+  ESP_ERROR_CHECK(esp_wifi_set_channel(chan ,WIFI_SECOND_CHAN_NONE));
   esp_now_del_peer(serverAddress);
   memset(&peer, 0, sizeof(esp_now_peer_info_t));
   peer.channel = chan;
@@ -155,14 +162,25 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
   } 
 
   if (len == sizeof(pairingData)){  // we received pairing request from server
-     memcpy(&pairingData, incomingData, sizeof(pairingData));
-     Serial.print("Pairing ");
+    memcpy(&pairingData, incomingData, sizeof(pairingData));
     if (pairingData.id == 0) {  // the message comes from server
       printMAC(mac_addr);
+      Serial.print("Pairing done for ");
+      printMAC(mac_addr);
+      Serial.print(" on channel " );
+      Serial.print(pairingData.channel);    // channel used by the server
+      Serial.print(" in ");
+      Serial.print(millis()-start);
+      Serial.println("ms");
 
       Serial.print(" on channel " );
       Serial.println(pairingData.channel);    // channel used by the server
       addPeer(mac_addr, pairingData.channel); // add the server to the peer list 
+      #ifdef SAVE_CHANNEL
+        lastChannel = pairingData.channel;
+        EEPROM.write(0, pairingData.channel);
+        EEPROM.commit();
+      #endif  
       pairingStatus = PAIR_PAIRED;                 // set the pairing status
     }
   }  
@@ -194,6 +212,7 @@ PairingStatus autoPairing(){
     // add peer and send request
     addPeer(serverAddress, channel);
     esp_now_send(serverAddress, (uint8_t *) &pairingData, sizeof(pairingData));
+    previousMillis = millis();
     pairingStatus = PAIR_REQUESTED;
     break;
 
@@ -204,12 +223,16 @@ PairingStatus autoPairing(){
       previousMillis = currentMillis;
       // time out expired,  try next channel
       channel ++;
+      if (channel > MAX_CHANNEL){
+         channel = 1;
+      }   
       pairingStatus = PAIR_REQUEST;
     }
     break;
 
     case PAIR_PAIRED:
     //Serial.println("Paired!");
+    
     break;
   }
   return pairingStatus;
@@ -222,8 +245,17 @@ void setup() {
   Serial.println(WiFi.macAddress());
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  
-  Serial.println(sizeof(myData));
+  start = millis();
+
+  #ifdef SAVE_CHANNEL 
+    EEPROM.begin(10);
+    lastChannel = EEPROM.read(0);
+    Serial.println(lastChannel);
+    if (lastChannel >= 1 && lastChannel <= MAX_CHANNEL) {
+      channel = lastChannel; 
+    }
+    Serial.println(channel);
+  #endif  
   pairingStatus = PAIR_REQUEST;
 }  
 
@@ -242,3 +274,4 @@ void loop() {
     }
   }
 }
+// Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
