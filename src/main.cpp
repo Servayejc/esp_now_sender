@@ -54,8 +54,6 @@ TODO:
 #include <WiFi.h>
 #include <EEPROM.h>
 
-//#define SAVE_CHANNEL  
-
 // Set your Board and Server ID 
 #define BOARD_ID 1
 #define SERVER_ID 0
@@ -72,24 +70,18 @@ typedef struct struct_message {
     int readingId;
 } struct_message;
 
-// Structure example to receive data
-// Must match the sender structure
-typedef struct struct_message {
-  uint8_t msgType;
-  uint8_t id;
-  float temp;
-  float hum;
-  unsigned int readingId;
-} struct_message;
-
-typedef struct struct_pairing {       // new structure for pairing
-    uint8_t msgType;
-    uint8_t id;
-    uint8_t macAddr[6];
-    uint8_t channel;
+// structure to send pairing request
+// structure size must be different from message size
+typedef struct struct_pairing {
+    int id;
+    int channel;
 } struct_pairing;
 
 
+//Create 2 struct_message 
+struct_message myData;  // data to send
+struct_message inData;  // data received
+struct_pairing pairingData;
 
 enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
 PairingStatus pairingStatus = NOT_PAIRED;
