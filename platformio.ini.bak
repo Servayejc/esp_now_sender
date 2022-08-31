@@ -8,16 +8,23 @@
 ; Please visit documentation for the other options and examples
 ; https://docs.platformio.org/page/projectconf.html
 
+#[platformio]
+#default_envs = esp8266, esp32doit-devkit-v1
+
+#[env:esp8266]
+#platform = espressif8266
+#board = nodemcu 
+#monitor_speed = 74880
+#framework = arduino
+#lib_extra_dirs = lib_dir , ~/Documents/Arduino/libraries
+
 [env:esp32doit-devkit-v1]
 platform = espressif32
 board = esp32doit-devkit-v1
 monitor_speed = 74880
 framework = arduino
-board_build.filesystem = littlefs
-lib_deps = 
-    #arduino-libraries/Arduino_JSON @ ^0.1.0
-    https://github.com/me-no-dev/ESPAsyncWebServer.git
-    https://github.com/me-no-dev/AsyncTCP.git
-    bblanchon/ArduinoJson@^6.18.3
+ 
+#lib_deps = 
+ #   arduino-libraries/Arduino_JSON @ ^0.1.0
 
 
