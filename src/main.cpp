@@ -80,6 +80,8 @@ typedef struct struct_pairing {       // new structure for pairing
     uint8_t channel;
 } struct_pairing;
 
+//uint8_t messageType;
+
  
 
 
@@ -90,7 +92,10 @@ struct_message inData;  // data received
 struct_pairing pairingData;
 
 enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
+
 PairingStatus pairingStatus = NOT_PAIRED;
+enum MessageType {PAIRING, DATA,};
+MessageType messageType;
 
 #ifdef SAVE_CHANNEL
   int lastChannel;
@@ -155,7 +160,10 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
   Serial.println();
   Serial.print("data size = ");
   Serial.println(sizeof(incomingData));
-  if (len == sizeof(myData)){     // we received data from server
+  uint8_t type = incomingData[0];
+  switch (type) {
+  case DATA : 
+ // if (len == sizeof(myData)){     // we received data from server
     memcpy(&inData, incomingData, sizeof(inData));
     t = inData.temp;
     h = inData.hum;
@@ -167,23 +175,22 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
     Serial.println(inData.hum);
     Serial.print("reading Id  = ");
     Serial.println(inData.readingId);
-  } 
+  //} 
+    break;
 
-  if (len == sizeof(pairingData)){          // we received pairing data from server
+  case PAIRING:  
+  //if (len == sizeof(pairingData)){          // we received pairing data from server
     memcpy(&pairingData, incomingData, sizeof(pairingData));
     if (pairingData.id == 0) {              // the message comes from server
       printMAC(mac_addr);
       Serial.print("Pairing done for ");
-      printMAC(mac_addr);
+      printMAC(pairingData.macAddr);
       Serial.print(" on channel " );
       Serial.print(pairingData.channel);    // channel used by the server
       Serial.print(" in ");
       Serial.print(millis()-start);
       Serial.println("ms");
-
-      Serial.print(" on channel " );
-      Serial.println(pairingData.channel);    // channel used by the server
-      addPeer(mac_addr, pairingData.channel); // add the server to the peer list 
+      addPeer(pairingData.macAddr, pairingData.channel); // add the server  to the peer list 
       #ifdef SAVE_CHANNEL
         lastChannel = pairingData.channel;
         EEPROM.write(0, pairingData.channel);
@@ -191,6 +198,7 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
       #endif  
       pairingStatus = PAIR_PAIRED;             // set the pairing status
     }
+    break;
   }  
 }
 
