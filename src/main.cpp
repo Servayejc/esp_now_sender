@@ -63,19 +63,25 @@ uint8_t serverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
 //Structure to send data
 //Must match the receiver structure
+// Structure example to receive data
+// Must match the sender structure
 typedef struct struct_message {
-    int id;
-    float temp;
-    float hum;
-    int readingId;
+  uint8_t msgType;
+  uint8_t id;
+  float temp;
+  float hum;
+  unsigned int readingId;
 } struct_message;
 
-// structure to send pairing request
-// structure size must be different from message size
-typedef struct struct_pairing {
-    int id;
-    int channel;
+typedef struct struct_pairing {       // new structure for pairing
+    uint8_t msgType;
+    uint8_t id;
+    uint8_t macAddr[6];
+    uint8_t channel;
 } struct_pairing;
+
+ 
+
 
 
 //Create 2 struct_message 
