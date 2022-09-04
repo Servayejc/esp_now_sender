@@ -80,20 +80,14 @@ typedef struct struct_pairing {       // new structure for pairing
     uint8_t channel;
 } struct_pairing;
 
-//uint8_t messageType;
-
- 
-
-
-
 //Create 2 struct_message 
 struct_message myData;  // data to send
 struct_message inData;  // data received
 struct_pairing pairingData;
 
 enum PairingStatus {NOT_PAIRED, PAIR_REQUEST, PAIR_REQUESTED, PAIR_PAIRED,};
-
 PairingStatus pairingStatus = NOT_PAIRED;
+
 enum MessageType {PAIRING, DATA,};
 MessageType messageType;
 
@@ -126,11 +120,11 @@ float readDHTHumidity() {
   return h;
 }
 
-void addPeer(const uint8_t * mac_addr, int chan){
+void addPeer(const uint8_t * mac_addr, uint8_t chan){
   esp_now_peer_info_t peer;
   Serial.println(chan);
   ESP_ERROR_CHECK(esp_wifi_set_channel(chan ,WIFI_SECOND_CHAN_NONE));
-  esp_now_del_peer(serverAddress);
+  esp_now_del_peer(mac_addr);
   memset(&peer, 0, sizeof(esp_now_peer_info_t));
   peer.channel = chan;
   peer.encrypt = false;
@@ -219,6 +213,7 @@ PairingStatus autoPairing(){
     esp_now_register_recv_cb(OnDataRecv);
   
     // set pairing data to send to the server
+    pairingData.msgType = PAIRING;
     pairingData.id = BOARD_ID;     
     pairingData.channel = channel;
 
@@ -232,7 +227,7 @@ PairingStatus autoPairing(){
     case PAIR_REQUESTED:
     // time out to allow receiving response from server
     currentMillis = millis();
-    if(currentMillis - previousMillis > 100) {
+    if(currentMillis - previousMillis > 250) {
       previousMillis = currentMillis;
       // time out expired,  try next channel
       channel ++;
@@ -278,6 +273,7 @@ void loop() {
       // Save the last time a new reading was published
       previousMillis = currentMillis;
       //Set values to send
+      myData.msgType = DATA;
       myData.id = BOARD_ID;
       myData.temp = readDHTTemperature();
       myData.hum = readDHTHumidity();
