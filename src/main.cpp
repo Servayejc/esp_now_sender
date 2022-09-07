@@ -122,7 +122,6 @@ float readDHTHumidity() {
 
 void addPeer(const uint8_t * mac_addr, uint8_t chan){
   esp_now_peer_info_t peer;
-  Serial.println(chan);
   ESP_ERROR_CHECK(esp_wifi_set_channel(chan ,WIFI_SECOND_CHAN_NONE));
   esp_now_del_peer(mac_addr);
   memset(&peer, 0, sizeof(esp_now_peer_info_t));
@@ -156,8 +155,7 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
   Serial.println(sizeof(incomingData));
   uint8_t type = incomingData[0];
   switch (type) {
-  case DATA : 
- // if (len == sizeof(myData)){     // we received data from server
+  case DATA :      // we received data from server
     memcpy(&inData, incomingData, sizeof(inData));
     t = inData.temp;
     h = inData.hum;
@@ -169,11 +167,9 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
     Serial.println(inData.hum);
     Serial.print("reading Id  = ");
     Serial.println(inData.readingId);
-  //} 
     break;
 
-  case PAIRING:  
-  //if (len == sizeof(pairingData)){          // we received pairing data from server
+  case PAIRING:    // we received pairing data from server
     memcpy(&pairingData, incomingData, sizeof(pairingData));
     if (pairingData.id == 0) {              // the message comes from server
       printMAC(mac_addr);
