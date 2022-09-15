@@ -39,10 +39,9 @@ else
     The sender repeat the process on the next channel
 
 Notes: 
-  -In the code below, we use the size of the message to distinct regular message to pairing message
-  -Uncomment //#define SAVE_CHANNEL to save the channel in EEPROM 
-   but this has not a major impact of the pairing time 
   -13 channels exists in Europe, you can change MAX_CHANNEL value to accomodate your location  
+  - Added boot reason
+  - Added sleep mode 
 
 TODO:
   In case of server restart, it may use another WiFi channel, we need to add code for this situation. 
@@ -58,6 +57,8 @@ TODO:
 #define BOARD_ID 1
 #define SERVER_ID 0
 #define MAX_CHANNEL 11  // for North America // 13 in Europe
+#define SLEEP_MODE
+
 
 uint8_t serverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
@@ -91,22 +92,38 @@ PairingStatus pairingStatus = NOT_PAIRED;
 enum MessageType {PAIRING, DATA,};
 MessageType messageType;
 
-#ifdef SAVE_CHANNEL
-  int lastChannel;
-#endif  
-int channel = 1;
- 
+RTC_DATA_ATTR int channel = 1;    // save in RTC so in sleep mode we can use directly the good channel  
+RTC_DATA_ATTR unsigned int readingId = 0; 
+RTC_DATA_ATTR int bootCount = 0;
 
 // simulate temperature and humidity data
 float t = 0;
 float h = 0;
 
-
 unsigned long currentMillis = millis();
 unsigned long previousMillis = 0;   // Stores last time temperature was published
-const long interval = 10000;        // Interval at which to publish sensor readings
+const long interval = 5000;         // Interval at which to publish sensor readings
 unsigned long start;                // used to measure Pairing time
-unsigned int readingId = 0;   
+   
+
+#define uS_TO_S_FACTOR 1000000ULL  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  5           /* Time ESP32 will go to sleep (in seconds) */
+
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep\n"); break;
+  }
+}
 
 // simulate temperature reading
 float readDHTTemperature() {
@@ -244,37 +261,45 @@ PairingStatus autoPairing(){
 void setup() {
   Serial.begin(74880);
   Serial.println();
+  ++bootCount;
+  Serial.println("Boot number: " + String(bootCount));
+  print_wakeup_reason();
   Serial.print("Client Board MAC Address:  ");
   Serial.println(WiFi.macAddress());
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   start = millis();
 
-  #ifdef SAVE_CHANNEL 
-    EEPROM.begin(10);
-    lastChannel = EEPROM.read(0);
-    Serial.println(lastChannel);
-    if (lastChannel >= 1 && lastChannel <= MAX_CHANNEL) {
-      channel = lastChannel; 
-    }
-    Serial.println(channel);
-  #endif  
+  #ifdef SLEEP_MODE 
+    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+    Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
+  #endif
+  
   pairingStatus = PAIR_REQUEST;
+}  
+
+void sendData(){
+  myData.msgType = DATA;
+  myData.id = BOARD_ID;
+  myData.temp = readDHTTemperature();
+  myData.hum = readDHTHumidity();
+  myData.readingId = readingId++;
+  esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &myData, sizeof(myData));
 }  
 
 void loop() {
   if (autoPairing() == PAIR_PAIRED) {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-      // Save the last time a new reading was published
-      previousMillis = currentMillis;
-      //Set values to send
-      myData.msgType = DATA;
-      myData.id = BOARD_ID;
-      myData.temp = readDHTTemperature();
-      myData.hum = readDHTHumidity();
-      myData.readingId = readingId++;
-      esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &myData, sizeof(myData));
-    }
+    #ifdef SLEEP_MODE 
+      sendData();
+      Serial.println("Going to sleep now");
+      Serial.flush(); 
+      esp_deep_sleep_start();
+    #else
+      unsigned long currentMillis = millis();
+      if (currentMillis - previousMillis >= interval) {
+        previousMillis = currentMillis;
+        sendData();
+      }  
+    #endif
   }
 }
